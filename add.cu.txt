@@ -1,0 +1,66 @@
+#include <stdio.h>
+
+// Kernel function to add two vectors on GPU
+__global__ void vectorAdd(int *a, int *b, int *c, int n) {
+    // Get the global thread ID
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    // Check if the thread index is within the vector size
+    if (tid < n) {
+        c[tid] = a[tid] + b[tid];
+    }
+}
+
+int main() {
+    int n = 1000000; // Size of vectors
+    int *a, *b, *c; // Host vectors
+    int *d_a, *d_b, *d_c; // Device vectors
+    int size = n * sizeof(int); // Size of vectors in bytes
+    
+    // Allocate memory for host vectors
+    a = (int*)malloc(size);
+    b = (int*)malloc(size);
+    c = (int*)malloc(size);
+    
+    // Initialize host vectors
+    for (int i = 0; i < n; i++) {
+        a[i] = i;
+        b[i] = i * 2;
+    }
+    
+    // Allocate memory for device vectors
+    cudaMalloc(&d_a, size);
+    cudaMalloc(&d_b, size);
+    cudaMalloc(&d_c, size);
+    
+    // Copy host vectors to device
+    cudaMemcpy(d_a, a, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, b, size, cudaMemcpyHostToDevice);
+    
+    // Define grid and block dimensions
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
+    
+    // Launch kernel to add vectors on GPU
+    vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_a, d_b, d_c, n);
+    
+    // Copy result from device to host
+    cudaMemcpy(c, d_c, size, cudaMemcpyDeviceToHost);
+    
+    // Verify result
+    for (int i = 0; i < 10; i++) {
+        printf("%d + %d = %d\n", a[i], b[i], c[i]);
+    }
+    
+    // Free device memory
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
+    
+    // Free host memory
+    free(a);
+    free(b);
+    free(c);
+    
+    return 0;
+}

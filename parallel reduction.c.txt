@@ -1,0 +1,71 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
+
+#define ARRAY_SIZE 1000
+
+int main(int argc, char* argv[]) {
+    int rank, size;
+    int *arr, *local_arr;
+    int local_size, local_sum = 0, global_sum = 0;
+    int local_min, global_min, local_max, global_max;
+    double local_avg, global_avg;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank == 0) {
+        // Initialize array with random values
+        arr = (int *)malloc(ARRAY_SIZE * sizeof(int));
+        for (int i = 0; i < ARRAY_SIZE; i++) {
+            arr[i] = rand() % 1000;
+        }
+    }
+
+    // Scatter the array among processes
+    local_size = ARRAY_SIZE / size;
+    local_arr = (int *)malloc(local_size * sizeof(int));
+    MPI_Scatter(arr, local_size, MPI_INT, local_arr, local_size, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Compute local minimum, maximum, sum, and average
+    local_min = local_max = local_arr[0];
+    for (int i = 0; i < local_size; i++) {
+        local_sum += local_arr[i];
+        if (local_arr[i] < local_min) {
+            local_min = local_arr[i];
+        }
+        if (local_arr[i] > local_max) {
+            local_max = local_arr[i];
+        }
+    }
+
+    // Perform reduction operations
+    MPI_Reduce(&local_sum, &global_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&local_min, &global_min, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&local_max, &global_max, 1, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    // Compute global average
+    local_avg = (double)local_sum / local_size;
+    MPI_Reduce(&local_avg, &global_avg, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0) {
+        global_avg /= ARRAY_SIZE;
+    }
+
+    // Print results
+    if (rank == 0) {
+        printf("Global Sum: %d\n", global_sum);
+        printf("Global Min: %d\n", global_min);
+        printf("Global Max: %d\n", global_max);
+        printf("Global Average: %.2f\n", global_avg);
+    }
+
+    // Clean up
+    if (rank == 0) {
+        free(arr);
+    }
+    free(local_arr);
+    
+    MPI_Finalize();
+    return 0;
+}
